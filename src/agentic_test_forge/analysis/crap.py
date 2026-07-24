@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -82,9 +83,22 @@ def _qualified_name(function: Function) -> str:
     return name
 
 
+@lru_cache(maxsize=1)
+def _exclude_regex() -> str:
+    """Combined regex for excluded lines, per the project's coverage config.
+
+    ``Coverage()`` reads .coveragerc/pyproject.toml from the current
+    directory, so the user's ``exclude_lines`` settings (and the default
+    ``pragma: no cover``) apply here the same way they do in coverage.py's
+    own reports.
+    """
+    exclude_list = coverage.Coverage().config.exclude_list
+    return "|".join(f"(?:{pattern})" for pattern in exclude_list)
+
+
 def _executable_lines(source: str) -> set[int]:
     """Return executable statement lines using coverage.py's own parser."""
-    parser = PythonParser(text=source)
+    parser = PythonParser(text=source, exclude=_exclude_regex())
     parser.parse_source()
     return set(parser.statements)
 

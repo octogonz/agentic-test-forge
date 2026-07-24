@@ -16,6 +16,7 @@ from radon.visitors import Function
 from agentic_test_forge.analysis.crap import (
     CoverageDataMissingError,
     _coverage_lines_for_file,
+    _exclude_regex,
     _executable_lines,
     _finding_from_radon_block,
     analyze_crap,
@@ -132,6 +133,24 @@ def test_finding_from_radon_block_marks_uncovered_above_threshold() -> None:
     assert finding.coverage == 0.0
     assert finding.crap_score > 6
     assert finding.above_threshold is True
+
+
+def test_executable_lines_honors_coverage_excludes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Lines excluded by coverage config must not count as executable."""
+    monkeypatch.chdir(tmp_path)
+    _exclude_regex.cache_clear()
+    try:
+        source = (
+            "def guarded(flag):\n"
+            "    if flag:  # pragma: no cover\n"
+            "        return 2\n"
+            "    return 1\n"
+        )
+        assert _executable_lines(source) == {1, 4}
+    finally:
+        _exclude_regex.cache_clear()
 
 
 def test_finding_from_radon_block_ignores_non_executable_lines() -> None:
