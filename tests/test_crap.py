@@ -16,6 +16,7 @@ from radon.visitors import Function
 from agentic_test_forge.analysis.crap import (
     CoverageDataMissingError,
     _coverage_lines_for_file,
+    _executable_lines,
     _finding_from_radon_block,
     analyze_crap,
     compute_crap_score,
@@ -70,11 +71,13 @@ def test_coverage_lines_for_file_resolves_measured_lines(tmp_path: Path) -> None
 
 
 def test_finding_from_radon_block_uses_coverage_and_threshold() -> None:
-    block = _function_block("def foo():\n    return 1\n")
+    source = "def foo():\n    return 1\n"
+    block = _function_block(source)
     finding = _finding_from_radon_block(
         block,
         Path("sample.py"),
         {1, 2},
+        _executable_lines(source),
         threshold=6,
         formula="standard",
     )
@@ -87,18 +90,20 @@ def test_finding_from_radon_block_uses_coverage_and_threshold() -> None:
 
 
 def test_finding_from_radon_block_marks_uncovered_above_threshold() -> None:
-    block = _function_block(
+    source = (
         "def complex_uncovered(value):\n"
         "    if value > 0:\n"
         "        if value > 10:\n"
         "            return value * 2\n"
         "        return value\n"
-        "    return 0\n",
+        "    return 0\n"
     )
+    block = _function_block(source)
     finding = _finding_from_radon_block(
         block,
         Path("uncovered.py"),
         set(),
+        _executable_lines(source),
         threshold=6,
         formula="standard",
     )
@@ -106,6 +111,35 @@ def test_finding_from_radon_block_marks_uncovered_above_threshold() -> None:
     assert finding.coverage == 0.0
     assert finding.crap_score > 6
     assert finding.above_threshold is True
+
+
+def test_finding_from_radon_block_ignores_non_executable_lines() -> None:
+    """Docstrings, blanks, and comments must not dilute function coverage."""
+    source = (
+        "def documented():\n"
+        '    """Docstring line one.\n'
+        "\n"
+        "    Docstring line two.\n"
+        '    """\n'
+        "\n"
+        "    # comment\n"
+        "    return 1\n"
+    )
+    block = _function_block(source)
+    statement_lines = _executable_lines(source)
+    assert statement_lines == {1, 8}
+
+    finding = _finding_from_radon_block(
+        block,
+        Path("documented.py"),
+        statement_lines,
+        statement_lines,
+        threshold=6,
+        formula="standard",
+    )
+
+    assert finding.coverage == 1.0
+    assert finding.crap_score == float(block.complexity)
 
 
 def test_analyze_crap_missing_coverage(tmp_path: Path) -> None:
