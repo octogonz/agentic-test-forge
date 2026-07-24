@@ -110,14 +110,12 @@ def _function_coverage(
 
 
 def _match_coverage_path(data: coverage.CoverageData, filepath: Path) -> str | None:
-    resolved = str(filepath.resolve())
+    resolved = filepath.resolve()
     measured = data.measured_files()
-    if resolved in measured:
-        return resolved
+    if str(resolved) in measured:
+        return str(resolved)
     for measured_path in measured:
-        if Path(measured_path).resolve() == filepath.resolve():
-            return measured_path
-        if Path(measured_path).name == filepath.name:
+        if Path(measured_path).resolve() == resolved:
             return measured_path
     return None
 

@@ -70,6 +70,27 @@ def test_coverage_lines_for_file_resolves_measured_lines(tmp_path: Path) -> None
     assert lines == {1}
 
 
+def test_coverage_lines_for_file_ignores_same_named_sibling(tmp_path: Path) -> None:
+    """An unmeasured file must report no coverage, not a namesake's lines."""
+    measured = tmp_path / "pkg_a" / "utils.py"
+    unmeasured = tmp_path / "pkg_b" / "utils.py"
+    for module in (measured, unmeasured):
+        module.parent.mkdir()
+        module.write_text("def foo():\n    return 1\n", encoding="utf-8")
+
+    cov = coverage.Coverage(
+        data_file=str(tmp_path / ".coverage"),
+        source=[str(measured.parent)],
+    )
+    cov.start()
+    runpy.run_path(str(measured))
+    cov.stop()
+    cov.save()
+
+    assert _coverage_lines_for_file(cov.get_data(), measured) == {1}
+    assert _coverage_lines_for_file(cov.get_data(), unmeasured) == set()
+
+
 def test_finding_from_radon_block_uses_coverage_and_threshold() -> None:
     source = "def foo():\n    return 1\n"
     block = _function_block(source)
